@@ -36,8 +36,36 @@ register_google(key = mapKey)
 # ——————————————————————————————————
 
 # Global themes and styles
-source(paste0(getwd(), "/supplemental.R"))
+source(paste0(getwd(), "/supplemental.R")) 
 
 
+#### Pull data from source ####
+# ——————————————————————————————————
 
+# Grid point metadata
+gp_meta_sql <-
+    "
+  SELECT *
+  FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
+  "
+gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
+gp_meta_tb <- bq_table_download(gp_meta_bq)
+gp_meta_df <- as.data.frame(gp_meta_tb)
 
+# Bird survey points from 2020
+bird_2020_sql <- 
+    "
+    SELECT DISTINCT survey_year, survey_grid_point
+    FROM `mpg-data-warehouse.bird_point_count_summaries.abundance_order`
+    WHERE survey_year = 2020
+    ORDER BY survey_grid_point
+    "
+bird_2020_bq <- bq_project_query(billing, bird_2020_sql)
+bird_2020_tb <- bq_table_download(bird_2020_bq)
+bird_2020_df <- as.data.frame(bird_2020_tb)
+
+# KD proposed survey points
+read.csv(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$kd_clust, sep = ",", header = TRUE)
+# These aren't right, these are just the clustered points with all grid points. 
+
+                 
