@@ -1,8 +1,16 @@
 #### Description ####
 # ——————————————————————————————————
+# In 2021, Kyle Doherty used a clustering procedure to choose 63 locations for surveys.
+# We also had ~200 points surveyed for birds in 2020. 
+# Here, the purpose is to create an output file that can be fed through a pipeline
+# to produce a KML for viewing the selected points in Google Earth. Others 
+# at MPG will view the points so we can discuss where surveys should occur. 
 
-
-
+## Output detail
+# The spreadsheet data will be uploaded to Earth Point's Excel To KML tool for transposition.
+# For the tool, the exported data frame must have at minimum the columns:
+# Latitude,	Longitude, Name, Description, and Icon
+# https://www.earthpoint.us/exceltokml.aspx
 
 
 #### Package and library installation ####
@@ -45,12 +53,13 @@ source(paste0(getwd(), "/supplemental.R"))
 # Grid point metadata
 gp_meta_sql <-
     "
-  SELECT *
+  SELECT grid_point, lat, long
   FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
   "
 gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
 gp_meta_tb <- bq_table_download(gp_meta_bq)
-gp_meta_df <- as.data.frame(gp_meta_tb)
+gp_meta_df <- as.data.frame(gp_meta_tb) %>% 
+  rename(Latitude = "lat", Longitude = "long")
 
 # Bird survey points from 2020
 bird_2020_sql <- 
@@ -62,10 +71,60 @@ bird_2020_sql <-
     "
 bird_2020_bq <- bq_project_query(billing, bird_2020_sql)
 bird_2020_tb <- bq_table_download(bird_2020_bq)
-bird_2020_df <- as.data.frame(bird_2020_tb)
+bird_2020_df <- as.data.frame(bird_2020_tb) %>% 
+  rename(Name = "survey_grid_point") %>% 
+  select(-survey_year)
 
 # KD proposed survey points
-read.csv(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$kd_clust, sep = ",", header = TRUE)
-# These aren't right, these are just the clustered points with all grid points. 
+kd_pts <- read.csv(paste0(getwd(), "/2021_gp_targets.csv"), sep = ",", header = TRUE) %>% 
+  rename(Name = "kd_targets_2021")
 
-                 
+
+#### Produce location data table ####
+# ——————————————————————————————————
+
+locs <- rbind(
+  bird_2020_df %>%
+    left_join(gp_meta_df, by = c("Name" = "grid_point")) %>%
+    select(starts_with("L"), Name) %>%
+    mutate(
+      Description = "bird survey 2020",
+      Icon = 175,
+      Folder = "Survey planning 2021/bird survey pts 2020"
+    ),
+  kd_pts %>%
+    left_join(gp_meta_df, by = c("Name" = "grid_point")) %>%
+    select(starts_with("L"), Name) %>%
+    mutate(
+      Description = "KD targets 2021",
+      Icon = 165,
+      Folder = "Survey planning 2021/Kyle Doherty pts 2021"
+    ) %>%
+    drop_na()
+) 
+
+
+#### View locations ####
+# ——————————————————————————————————
+
+mpgr_map <- 
+  ggmap(
+    get_googlemap(
+      center = c(lon = -114.008, lat = 46.700006),
+      zoom = 13, 
+      scale = 2,
+      maptype ='terrain'
+    )
+  )                   
+mpgr_map +
+  geom_point(
+    data = locs,
+    aes(
+      x = Longitude,
+      y = Latitude,
+      shape = Description,
+      color = Description
+    ),
+    stroke = 1.4
+  ) +
+  scale_shape_manual(values = c(3, 4))
