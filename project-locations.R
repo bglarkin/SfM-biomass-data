@@ -102,6 +102,7 @@ locs <- rbind(
     ) %>%
     drop_na()
 ) 
+write_csv(locs, file = paste0(getwd(), "/points_exported.csv"))
 
 
 #### View locations ####
