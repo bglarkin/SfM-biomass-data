@@ -1,6 +1,7 @@
 #### Description ####
 # ——————————————————————————————————
 # In 2021, Kyle Doherty used a clustering procedure to choose 63 locations for surveys.
+# 60 are from the original set of grid points at MPG Ranch. 
 # We also had ~200 points surveyed for birds in 2020. 
 # Here, the purpose is to create an output file that can be fed through a pipeline
 # to produce a KML for viewing the selected points in Google Earth. Others 
@@ -15,7 +16,7 @@
 
 #### Package and library installation ####
 # ——————————————————————————————————
-packages_needed = c("tidyverse", "knitr", "rjson", "bigrquery", "ggmap")
+packages_needed = c("tidyverse", "rjson", "bigrquery", "ggmap")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(! packages_installed))
     install.packages(packages_needed[! packages_installed])
