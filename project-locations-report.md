@@ -6,11 +6,11 @@ Beau Larkin
 # Description
 
 In 2021, Kyle Doherty used a clustering procedure to choose 63 locations
-for surveys. We also had \~200 points surveyed for birds in 2020. Here,
-the purpose is to create an output file that can be fed through a
-pipeline to produce a KML for viewing the selected points in Google
-Earth. Others at MPG will view the points so we can discuss where
-surveys should occur.
+for surveys. 60 are from the original set of grid points at MPG Ranch.
+We also had \~200 points surveyed for birds in 2020. Here, the purpose
+is to create an output file that can be fed through a pipeline to
+produce a KML for viewing the selected points in Google Earth. Others at
+MPG will view the points so we can discuss where surveys should occur.
 
 ## Output detail
 
@@ -102,14 +102,25 @@ bird_2020_df <- as.data.frame(bird_2020_tb) %>%
     select(-survey_year)
 
 # KD proposed survey points
+# Old points
 kd_pts <-
     read.csv(paste0(getwd(), "/2021_gp_targets.csv"),
              sep = ",",
              header = TRUE) %>%
     rename(Name = "kd_targets_2021")
+# New points
+kd_pts_new <-
+    read.csv(paste0(getwd(), "/2021_gp_targets_new.csv"),
+             sep = ",",
+             header = TRUE) %>%
+    rename(Name = "grid_point",
+           Latitude = "lat",
+           Longitude = "long")
 ```
 
-Produce location data table
+Produce location data table Remove the three new points from KD’s set
+because we don’t have location metadata for them and may not sample them
+in the future…
 
 ``` r
 locs <- rbind(
@@ -118,7 +129,8 @@ locs <- rbind(
         select(starts_with("L"), Name) %>%
         mutate(
             Description = "bird survey 2020",
-            Icon = 175,
+            Icon = 201,
+            IconColor = "Yellow",
             Folder = "Survey planning 2021/bird survey pts 2020"
         ),
     kd_pts %>%
@@ -126,12 +138,21 @@ locs <- rbind(
         select(starts_with("L"), Name) %>%
         mutate(
             Description = "KD targets 2021",
-            Icon = 165,
+            Icon = 202,
+            IconColor = "Cyan",
             Folder = "Survey planning 2021/Kyle Doherty pts 2021"
         ) %>%
-        drop_na()
-)
-write_csv(locs, file = paste0(getwd(), "/points_exported.csv"))
+        drop_na(),
+    kd_pts_new %>%
+        select(starts_with("L"), Name) %>%
+        mutate(
+            Description = "KD new targets 2021",
+            Icon = 203,
+            IconColor = "Lime",
+            Folder = "Survey planning 2021/Kyle Doherty new pts 2021"
+        )
+) %>% 
+    mutate(HideNameUntilMouseOver = "True")
 ```
 
 View locations
@@ -160,7 +181,7 @@ mpgr_map +
         ),
         stroke = 1.4
     ) +
-    scale_shape_manual(values = c(3, 4))
+    scale_shape_manual(values = c(3, 5, 4))
 ```
 
 ![](project-locations-report_files/figure-gfm/map_bird_kd-targets-1.png)<!-- -->
