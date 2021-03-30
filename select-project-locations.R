@@ -9,7 +9,7 @@
 
 #### Package and library installation ####
 # ——————————————————————————————————
-packages_needed = c("tidyverse", "rjson", "bigrquery", "ggmap")
+packages_needed = c("tidyverse", "rjson", "bigrquery", "ggmap", "knitr")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
     install.packages(packages_needed[!packages_installed])
@@ -50,8 +50,7 @@ gp_meta_sql <-
   "
 gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
 gp_meta_tb <- bq_table_download(gp_meta_bq)
-gp_meta_df <- as.data.frame(gp_meta_tb) %>%
-    rename(Latitude = "lat", Longitude = "long")
+gp_meta_df <- as.data.frame(gp_meta_tb)
 
 # Bird survey points from 2020
 bird_2020_sql <-
@@ -63,9 +62,7 @@ bird_2020_sql <-
     "
 bird_2020_bq <- bq_project_query(billing, bird_2020_sql)
 bird_2020_tb <- bq_table_download(bird_2020_bq)
-bird_2020_df <- as.data.frame(bird_2020_tb) %>%
-    rename(Name = "survey_grid_point") %>%
-    select(-survey_year)
+bird_2020_df <- as.data.frame(bird_2020_tb) 
 
 # KD proposed survey points
 # Old points
@@ -89,12 +86,26 @@ veg_sql <-
     SELECT grid_point, type4_indicators_history, key_plant_code, plant_native_status, plant_life_cycle, plant_life_form, intercepts_pct
     FROM `mpg-data-warehouse.vegetation_gridVeg_summaries.gridVeg_foliar_cover_all`
     WHERE year = 2016
-    AND type4_indicators_history IN ('uncultivated grassland native or degraded')
+    AND type4_indicators_history IN ('uncultivated grassland native or degraded', 'forage grass restoration', 'forage grass diversification')
     "
 veg_bq <- bq_project_query(billing, veg_sql)
 veg_tb <- bq_table_download(veg_bq)
-veg_df <- as.data.frame(veg_tb)
+veg_df <- as.data.frame(veg_tb) %>% glimpse() 
 
 
-glimpse(veg_df)
-veg_df %>% pull(type4_indicators_history) %>% unique()
+#### Filter data to help select points ####
+# ——————————————————————————————————
+# The goal is to get a large gradient of grass and forb cover in restored, diversified, and uncultivated grassland
+# Maximize these gradients
+# Data from restoration areas is old, but luckily these areas are the easiest to choose
+
+veg_df %>% 
+  filter(plant_life_cycle == "perennial", plant_life_form %in% c("forb", "graminoid")) %>% 
+  group_by(type4_indicators_history, plant_life_form, grid_point) %>% 
+  summarize(cover_pct = sum(intercepts_pct), .groups = "drop_last") %>%
+  mutate(rank = rank(cover_pct)) %>% 
+  pivot_wider(names_from = plant_life_form, values_from = c(cover_pct, rank)) %>% 
+  replace_na(list(cover_pct_forb = 0, cover_pct_graminoid = 0, rank_forb = 0, rank_graminoid = 0)) %>% 
+  mutate(diff_rank = rank_graminoid - rank_forb) %>% 
+  arrange(type4_indicators_history, diff_rank) %>% 
+  write_csv(., file = paste0(getwd(), "/forb_grass_ranked.csv"))
