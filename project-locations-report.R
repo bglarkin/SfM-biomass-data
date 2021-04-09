@@ -154,3 +154,4 @@ mpgr_map +
         stroke = 1.4
     ) +
     scale_shape_manual(values = c(3, 5, 4))
+
