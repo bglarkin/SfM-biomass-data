@@ -92,6 +92,17 @@ veg_bq <- bq_project_query(billing, veg_sql)
 veg_tb <- bq_table_download(veg_bq)
 veg_df <- as.data.frame(veg_tb) %>% glimpse() 
 
+# Grid point metadata
+gp_meta_sql <-
+  "
+  SELECT grid_point, lat, long, elevation_mean_m, type4_indicators_history
+  FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
+  "
+gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
+gp_meta_tb <- bq_table_download(gp_meta_bq)
+gp_meta_df <- as.data.frame(gp_meta_tb) %>%
+  rename(Latitude = "lat", Longitude = "long")
+
 
 #### Filter data to help select points ####
 # ——————————————————————————————————
@@ -99,13 +110,40 @@ veg_df <- as.data.frame(veg_tb) %>% glimpse()
 # Maximize these gradients
 # Data from restoration areas is old, but luckily these areas are the easiest to choose
 
-veg_df %>% 
-  filter(plant_life_cycle == "perennial", plant_life_form %in% c("forb", "graminoid")) %>% 
+forb_grass_max_pts <- 
+  veg_df %>% 
+  filter(
+    plant_life_cycle == "perennial", 
+    plant_life_form %in% c("forb", "graminoid"),
+    grid_point %in% bird_2020_df$survey_grid_point | grid_point %in% kd_pts$Name
+    ) %>% 
   group_by(type4_indicators_history, plant_life_form, grid_point) %>% 
   summarize(cover_pct = sum(intercepts_pct), .groups = "drop_last") %>%
-  mutate(rank = rank(cover_pct)) %>% 
-  pivot_wider(names_from = plant_life_form, values_from = c(cover_pct, rank)) %>% 
-  replace_na(list(cover_pct_forb = 0, cover_pct_graminoid = 0, rank_forb = 0, rank_graminoid = 0)) %>% 
-  mutate(diff_rank = rank_graminoid - rank_forb) %>% 
-  arrange(type4_indicators_history, diff_rank) %>% 
-  write_csv(., file = paste0(getwd(), "/forb_grass_ranked.csv"))
+  slice_max(cover_pct, n = 10) %>% 
+  rename(point = "grid_point", habitat = "type4_indicators_history", type = "plant_life_form") %>% 
+  select(point, habitat, type, cover_pct) %>% 
+  arrange(habitat, type, -cover_pct)
+
+View(forb_grass_max_pts)
+  
+write_csv(forb_grass_max_pts, file = paste0(getwd(), "/forb_grass_max_pts.csv")) 
+
+
+#### Produce df of selected locations ####
+# ——————————————————————————————————
+selected <- c(20,72,78,86,135,176,180,181,84,188,227,5,55,54,192,80,45,92,19,109)
+length(selected)
+
+gp_meta_df %>%
+  filter(grid_point %in% selected) %>%
+  rename(
+    name = "grid_point",
+    latitude = "Latitude",
+    longitude = "Longitude",
+    elevation = "elevation_mean_m"
+  ) %>%
+  select(-starts_with("type4")) %>% 
+  write.csv(., file = paste0(getwd(), "/biomass_survey_points.csv"))
+
+
+
